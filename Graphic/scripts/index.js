@@ -65,6 +65,45 @@
         return result;
     };
 
+    $scope.prepareData = function (data, groupBy) {
+        return $filter('orderBy')(data.reduce(function (previousValue, currentValue, index, array) {
+            var tempDate = new Date(currentValue[groupBy]);
+            let date = Date.parse(tempDate.toString().split(" ")[1] + ' 01 ' + tempDate.getFullYear().toString());
+
+            let found = $filter('filter')(previousValue, { groupBy: date }, true);
+            if (found.length) {
+                found[0].values.push(currentValue);
+            } else {
+                previousValue.push({
+                    groupBy: date,
+                    values: [currentValue]
+                });
+            }
+
+            return previousValue;
+        }, []), 'groupBy');
+    };
+
+    $scope.resolveData = function (data, groupBy, field) {
+        let graphic1 = [], graphic2 = [];
+
+        let tempData = $scope.prepareData(data, groupBy);
+
+        angular.forEach(tempData, function (value) {
+            graphic1.push({
+                date: value.groupBy,
+                value: value.values.reduce(function(previousValue, currentValue){ return previousValue + currentValue[field]}, 0)
+            });
+
+            graphic2.push({
+                date: value.groupBy,
+                value: value.values.length
+            });
+        });
+
+        return [graphic1, graphic2];
+    };
+    
     $scope.fieldExists = function (dataRow, field) {
         return dataRow[field] !== undefined;
     }
