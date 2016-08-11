@@ -1,5 +1,23 @@
-﻿angular.module('App', [])
+﻿var graphicData = [];
+
+angular.module('App', [])
 .controller('TodoCtrl', function ($scope, $http, $filter) {
+
+    $scope.svg;
+    // Graphic properties
+    $scope.margin = { top: 20, right: 20, bottom: 30, left: 50 };
+
+    $scope.graphicProperties = {
+        margin: $scope.margin,
+        width: 960 - $scope.margin.left - $scope.margin.right,
+        height: 500 - $scope.margin.top - $scope.margin.bottom
+    };
+
+    $scope.xScale = d3.scaleTime()
+            .range([0, $scope.graphicProperties.width - $scope.graphicProperties.margin.left -$scope.graphicProperties.margin.right]);
+
+    $scope.yScale = d3.scaleLinear()
+        .range([$scope.graphicProperties.height - $scope.graphicProperties.margin.top - $scope.graphicProperties.margin.bottom, 0]);
 
     $scope.showMinimum = function () {
         let minimum = $scope.getMinimum($scope.data, 'amount');
@@ -29,6 +47,100 @@
         } else {
             alert('The field \'amount\' is not part of the data object');
         }
+    };
+
+    $scope.changeDataRange = function () {
+        let x = $scope.changeDataRangeX();
+
+        let y = $scope.changeDataRangeY();
+
+        var temp = [graphicData[0].slice(0, 12), graphicData[1].slice(0, 12)];
+
+        var line = d3.line()
+            .x(function (d) { return x.scale(d.date); })
+            .y(function(d) { return y.scale(d.value);
+        });
+
+        // Make the changes
+        $scope.svg.select(".line")   // change the line
+            .datum(temp[0])
+            .transition()
+            .attr("d", line)
+            .attr('stroke', 'blue')
+            .attr('stroke-width', 2)
+            .attr('fill', 'none');
+
+        $scope.svg.select(".x.axis") // change the x axis
+            .transition()
+            .call(x.axis);
+        $scope.svg.select(".y.axis") // change the y axis
+            .transition()
+            .call(y.axis);
+    };
+
+    $scope.changeDataRangeX = function () {
+        // 1) change the scale
+        var newScale = $scope.createLinearScaleX(graphicData[0].slice(0, 12));
+
+        // 2) redefine the axis
+        var newAxis = $scope.createAxis('B', newScale);
+
+        // 3) redraw the axis
+        //$scope.updateGraphic('.x', newAxis);
+
+        return { scale: newScale, axis: newAxis };
+    };
+
+    $scope.changeDataRangeY = function () {
+        // 1) change the scale
+        var newScale = $scope.createLinearScaleY(graphicData[1].slice(0, 12));
+
+        // 2) redefine the axis
+        var newAxis = $scope.createAxis('L', newScale);
+
+        // 3) redraw the axis
+        //$scope.updateGraphic('.y', newAxis);
+
+        return { scale: newScale, axis: newAxis };
+    };
+
+    // Create X scale
+    $scope.createLinearScaleX = function (data) {
+        return $scope.xScale.domain($scope.basicHelpers(data, 'date', 'both'));
+    };
+
+    // Create Y scale
+    $scope.createLinearScaleY = function (data) {
+        return $scope.yScale.domain($scope.basicHelpers(data, 'value', 'both'));
+    };
+
+    // Create axis
+    $scope.createAxis = function (orientation, scale) {
+        let axis;
+        switch (orientation) {
+            case 'L':
+                axis = d3.axisLeft().scale(scale);
+                break;
+            case 'T':
+                axis = d3.axisTop().scale(scale);
+                break;
+            case 'R':
+                axis = d3.axisRight().scale(scale);
+                break;
+            default:
+            case 'B':
+                axis = d3.axisBottom().scale(scale);
+                break;
+        }
+
+        return axis;
+    };
+
+    // Update graphic
+    $scope.updateGraphic = function (selector, axis) {
+        d3.select(selector)
+            .transition(1000)
+            .call(axis);
     };
 
     $scope.plot = function () {
@@ -70,91 +182,69 @@
     };
 
     //todo: split in small methods
-    //$scope.setScale = function (data, domain, range) {
-    //    var x = d3.scaleTime()
-    //        .range($scope.basicHelpers(data, domain, 'both'));
-
-    //    var y = d3.scaleLinear()
-    //        .range($scope.basicHelpers(data, range, 'both'));
-
-    //    var line = d3.line()
-    //        .x(function (d) { return x(d[domain]); })
-    //        .y(function (d) { return x(d[range]); });
-
-    //    return line;
-    //};
-    //todo: split in small methods
-    //$scope.svg = function (graphicProperties) {
-    //    var svg = d3.select("body").append("svg")
-    //        .attr("width", graphicProperties.width + graphicProperties.margin.left +graphicProperties.margin.right)
-    //        .attr("height", graphicProperties.height + graphicProperties.margin.top + graphicProperties.margin.bottom)
-    //        .append("g")
-    //        .attr("transform", "translate(" + graphicProperties.margin.left + "," + graphicProperties.margin.top + ")");
-
-    //    return svg;
-    //};
-
-    //todo: split in small methods
     $scope.todo = function (graphicProperties, data, domain, range) {
-        ///
-        var x = d3.scaleTime()
-            .range([0, graphicProperties.width]);
-
-        var y = d3.scaleLinear()
-            .range([graphicProperties.height, 0]);
-
         var line = d3.line()
-            .x(function (d) { return x(d.date); })
-            .y(function (d) { return y(d.value); });
+            .x(function (d) { return $scope.xScale(d.date); })
+            .y(function (d) { return $scope.yScale(d.value); });
 
         ///
-        var svg = d3.select("body").append("svg")
-            .attr("width", graphicProperties.width + graphicProperties.margin.left + graphicProperties.margin.right)
+        $scope.svg = d3.select("body").append("svg");
+
+        $scope.svg.attr("width", graphicProperties.width + graphicProperties.margin.left + graphicProperties.margin.right)
             .attr("height", graphicProperties.height + graphicProperties.margin.top + graphicProperties.margin.bottom)
             .append("g")
             .attr("transform", "translate(" + graphicProperties.margin.left + "," + graphicProperties.margin.top + ")");
 
         ///
+
         d3.json("../json/tSample.json", function (error, data) {
             if (error) throw error;
 
-            let graphicData = $scope.resolveData(data, 'date', 'amount');
+            graphicData = $scope.resolveData(data, 'date', 'amount');
 
             let value = graphicData[0];//.slice(0,12);
-                x.domain(d3.extent(value, function (d) { return d.date; }));
-                y.domain(d3.extent(value, function (d) { return d.value; }));
 
-                svg.append("g")
-                    .attr("class", "axis axis--x")
-                    .attr("transform", "translate(0," + $scope.graphicProperties.height + ")")
-                    .call(d3.axisBottom(x));
+            $scope.xScale.domain(d3.extent(value, function (d) { return d.date; }));
+            $scope.yScale.domain(d3.extent(value, function (d) { return d.value; }));
 
-                svg.append("g")
-                    .attr("class", "axis axis--y")
-                    .call(d3.axisLeft(y))
-                  .append("text")
-                    .attr("class", "axis-title")
-                    .attr("transform", "rotate(-90)")
-                    .attr("y", 6)
-                    .attr("dy", ".71em")
-                    .style("text-anchor", "end");
+            $scope.svg.append("g")
+                .attr("class", "axis axis--x")
+                .attr("transform", "translate(" + $scope.graphicProperties.margin.left + "," + ($scope.graphicProperties.height - $scope.graphicProperties.margin.top -$scope.graphicProperties.margin.bottom) + ")")
+                .call(d3.axisBottom($scope.xScale));
 
-                svg.append("path")
-                    .datum(value)
-                    .attr("class", "line")
-                    .attr("d", line)
-                    .attr('stroke', 'green')
-                    .attr('stroke-width', 5)
-                    .attr('fill', 'none');
+            $scope.svg.append("g")
+                .attr("class", "axis axis--y")
+                .attr("transform", "translate(" + $scope.graphicProperties.margin.left+ ",0)")
+                .call(d3.axisLeft($scope.yScale));
 
-                //svg.append("path")
-                //    .datum(graphicData[1])
-                //    .attr("class", "line")
-                //    .attr("d", line)
-                //    .attr('stroke', 'blue')
-                //    .attr('stroke-width', 5)
-                //    .attr('fill', 'none');
+            $scope.svg.append("path")
+                .datum(value)
+                .attr("class", "line")
+                .attr("transform", "translate(" + $scope.graphicProperties.margin.left + ",0)")
+                .attr("d", line)
+                .attr('stroke', 'orange')
+                .attr('stroke-width', 2)
+                .attr('fill', 'none');
 
+            // Second line
+            value = graphicData[1];//.slice(0,12);
+
+            $scope.xScale.domain(d3.extent(value, function (d) { return d.date; }));
+            $scope.yScale.domain(d3.extent(value, function (d) { return d.value; }));
+
+            $scope.svg.append("g")
+                .attr("class", "axis axis--y")
+                .call(d3.axisRight($scope.yScale))
+                .attr("transform", "translate(" + ($scope.graphicProperties.width - $scope.graphicProperties.margin.right) + ",0)");
+
+            $scope.svg.append("path")
+                .datum(value)
+                .attr("class", "line")
+                .attr("transform", "translate(" + $scope.graphicProperties.margin.left + ",0)")
+                .attr("d", line)
+                .attr('stroke', "blue")
+                .attr('stroke-width', 2)
+                .attr('fill', 'none');
         });
     };
     
@@ -201,15 +291,6 @@
         });
 
         return [graphic1, graphic2];
-    };
-
-    // Graphic properties
-    $scope.margin = { top: 20, right: 20, bottom: 30, left: 50 };
-
-    $scope.graphicProperties = {
-        margin: $scope.margin,
-        width: 960 - $scope.margin.left - $scope.margin.right,
-        height: 500 - 20 - 30
     };
 
     // Triggers the draw
